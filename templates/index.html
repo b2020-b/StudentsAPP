@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>学生成绩管理系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav-menu">
+        <div class="nav-container">
+            <a href="/" class="nav-item active">成绩管理</a>
+            <a href="/visualization" class="nav-item">成绩分析</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>学生成绩管理系统</h1>
+        
+        <div class="import-export">
+            <div class="template-section">
+                <h2>Excel导入说明</h2>
+                <p>1. 请先下载Excel模板文件</p>
+                <p>2. 按照模板格式填写学生信息</p>
+                <p>3. 使用下方导入功能上传填写好的Excel文件</p>
+                <button onclick="downloadTemplate()">下载Excel模板</button>
+            </div>
+
+            <div class="import-section">
+                <h2>导入学生数据</h2>
+                <form id="importForm">
+                    <input type="file" name="file" accept=".xlsx,.xls" required>
+                    <button type="submit">导入Excel</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="students-list">
+            <h2>学生列表</h2>
+            <table id="studentsTable">
+                <thead>
+                    <tr>
+                        <th>学号</th>
+                        <th>姓名</th>
+                        <th>院系</th>
+                        <th>语文</th>
+                        <th>英语</th>
+                        <th>数学</th>
+                        <th>考试平均分</th>
+                        <th>互评分</th>
+                        <th>教师评分</th>
+                        <th>综合测评</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>修改学生信息</h2>
+            <form id="editForm">
+                <input type="hidden" id="edit_student_id" name="student_id">
+                <div>
+                    <label>姓名：</label>
+                    <input type="text" id="edit_name" name="name" required>
+                </div>
+                <div>
+                    <label>院系：</label>
+                    <input type="text" id="edit_department" name="department" required>
+                </div>
+                <div>
+                    <label>语文成绩：</label>
+                    <input type="number" id="edit_course1_score" name="course1_score" required>
+                </div>
+                <div>
+                    <label>英语成绩：</label>
+                    <input type="number" id="edit_course2_score" name="course2_score" required>
+                </div>
+                <div>
+                    <label>数学成绩：</label>
+                    <input type="number" id="edit_course3_score" name="course3_score" required>
+                </div>
+                <div>
+                    <label>互评分：</label>
+                    <input type="number" id="edit_peer_score" name="peer_score" required>
+                </div>
+                <div>
+                    <label>教师评分：</label>
+                    <input type="number" id="edit_teacher_score" name="teacher_score" required>
+                </div>
+                <button type="submit">保存修改</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 下载模板
+        function downloadTemplate() {
+            window.location.href = '/api/download-template';
+        }
+
+        // 导入Excel
+        document.getElementById('importForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/api/import-excel', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadStudents(); // 重新加载学生列表
+                
+                // 清除文件输入框的值
+                e.target.reset();
+            } catch (error) {
+                alert('导入失败：' + error);
+            }
+        });
+
+        // 加载学生列表
+        async function loadStudents() {
+            try {
+                const response = await fetch('/api/students');
+                const students = await response.json();
+                const tbody = document.querySelector('#studentsTable tbody');
+                tbody.innerHTML = '';
+                
+                students.forEach(student => {
+                    const examAverage = (student[3] + student[4] + student[5]) / 3;
+                    const finalScore = examAverage * 0.7 + student[6] * 0.1 + student[7] * 0.2;
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${student[0]}</td>
+                            <td>${student[1]}</td>
+                            <td>${student[2]}</td>
+                            <td>${student[3]}</td>
+                            <td>${student[4]}</td>
+                            <td>${student[5]}</td>
+                            <td>${examAverage.toFixed(2)}</td>
+                            <td>${student[6]}</td>
+                            <td>${student[7]}</td>
+                            <td>${finalScore.toFixed(2)}</td>
+                            <td>
+                                <button onclick="editStudent('${student[0]}', '${student[1]}', '${student[2]}', 
+                                    ${student[3]}, ${student[4]}, ${student[5]}, ${student[6]}, ${student[7]})">
+                                    修改
+                                </button>
+                                <button onclick="deleteStudent('${student[0]}')">删除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (error) {
+                console.error('加载学生列表失败：', error);
+            }
+        }
+
+        // 修改学生信息
+        function editStudent(studentId, name, department, course1, course2, course3, peer, teacher) {
+            document.getElementById('edit_student_id').value = studentId;
+            document.getElementById('edit_name').value = name;
+            document.getElementById('edit_department').value = department;
+            document.getElementById('edit_course1_score').value = course1;
+            document.getElementById('edit_course2_score').value = course2;
+            document.getElementById('edit_course3_score').value = course3;
+            document.getElementById('edit_peer_score').value = peer;
+            document.getElementById('edit_teacher_score').value = teacher;
+            
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        // 删除学生
+        async function deleteStudent(studentId) {
+            if (confirm('确定要删除这名学生的信息吗？')) {
+                try {
+                    const response = await fetch(`/api/students/${studentId}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    alert(result.message);
+                    loadStudents();
+                } catch (error) {
+                    alert('删除失败：' + error);
+                }
+            }
+        }
+
+        // 处理修改表单提交
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/api/students/' + data.student_id, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                alert(result.message);
+                document.getElementById('editModal').style.display = 'none';
+                loadStudents();
+            } catch (error) {
+                alert('修改失败：' + error);
+            }
+        });
+
+        // 关闭模态框
+        document.querySelector('.close').addEventListener('click', () => {
+            document.getElementById('editModal').style.display = 'none';
+        });
+
+        // 点击模态框外部关闭
+        window.addEventListener('click', (event) => {
+            const modal = document.getElementById('editModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // 页面加载时显示学生列表
+        loadStudents();
+    </script>
+</body>
+</html> 
